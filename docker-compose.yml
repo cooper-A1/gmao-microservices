@@ -1,0 +1,301 @@
+
+# docker-compose.yml - Orchestration complète des services GMAO
+#version: '3.8'
+
+services:
+  # ===================
+  # BASES DE DONNÉES
+  # ===================
+  
+  # PostgreSQL pour le service Machines
+  postgres-machines:
+    image: postgres:15-alpine
+    container_name: gmao_postgres_machines
+    environment:
+      POSTGRES_DB: machines_db
+      POSTGRES_USER: gmao_user
+      POSTGRES_PASSWORD: gmao_password
+    volumes:
+      - postgres_machines_data:/var/lib/postgresql/data
+      - ./database/init-scripts/machines.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - gmao_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gmao_user -d machines_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MongoDB pour le service Interventions
+  mongo-interventions:
+    image: mongo:7.0
+    container_name: gmao_mongo_interventions
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: gmao_user
+      MONGO_INITDB_ROOT_PASSWORD: gmao_password
+      MONGO_INITDB_DATABASE: interventions_db
+    volumes:
+      - mongo_interventions_data:/data/db
+      - ./database/init-scripts/interventions.js:/docker-entrypoint-initdb.d/init.js:ro
+    ports:
+      - "27017:27017"
+    networks:
+      - gmao_network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MySQL pour le service Techniciens
+  mysql-techniciens:
+    image: mysql:8.0
+    container_name: gmao_mysql_techniciens
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: techniciens_db
+      MYSQL_USER: gmao_user
+      MYSQL_PASSWORD: gmao_password
+    volumes:
+      - mysql_techniciens_data:/var/lib/mysql
+      - ./database/init-scripts/techniciens.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "3306:3306"
+    networks:
+      - gmao_network
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "gmao_user", "-pgmao_password"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis pour le service Stock
+  redis-stock:
+    image: redis:7-alpine
+    container_name: gmao_redis_stock
+    command: redis-server --appendonly yes --requirepass gmao_password
+    volumes:
+      - redis_stock_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - gmao_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "gmao_password", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===================
+  # MICROSERVICES
+  # ===================
+
+  # Service Machines (Java Spring Boot + PostgreSQL)
+  machines-service:
+    build: 
+      context: ./services/machines-service
+      dockerfile: Dockerfile
+    container_name: gmao_machines_service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-machines:5432/machines_db
+      SPRING_DATASOURCE_USERNAME: gmao_user
+      SPRING_DATASOURCE_PASSWORD: gmao_password
+      JWT_SECRET: ${JWT_SECRET:-mySecretKey123456789}
+      INTERVENTIONS_SERVICE_URL: http://interventions-service:8002
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres-machines:
+        condition: service_healthy
+    networks:
+      - gmao_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/machines/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Service Interventions (Python FastAPI + MongoDB)
+  interventions-service:
+    build:
+      context: ./services/interventions-service
+      dockerfile: Dockerfile
+    container_name: gmao_interventions_service
+    environment:
+      MONGODB_URL: mongodb://gmao_user:gmao_password@mongo-interventions:27017/interventions_db?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:-mySecretKey123456789}
+      STOCK_SERVICE_URL: http://stock-service:8004
+      TECHNICIENS_SERVICE_URL: http://techniciens-service:8003
+    ports:
+      - "8002:8002"
+    depends_on:
+      mongo-interventions:
+        condition: service_healthy
+    networks:
+      - gmao_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+
+  # Service Techniciens (Node.js Express + MySQL)
+  techniciens-service:
+    build:
+      context: ./services/techniciens-service
+      dockerfile: Dockerfile
+    container_name: gmao_techniciens_service
+    environment:
+      NODE_ENV: production
+      DB_HOST: mysql-techniciens
+      DB_PORT: 3306
+      DB_USER: gmao_user
+      DB_PASSWORD: gmao_password
+      DB_NAME: techniciens_db
+      JWT_SECRET: ${JWT_SECRET:-mySecretKey123456789}
+      PORT: 8003
+    ports:
+      - "8003:8003"
+    depends_on:
+      mysql-techniciens:
+        condition: service_healthy
+    networks:
+      - gmao_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+
+  # Service Stock (Go Gin + Redis)
+  stock-service:
+    build:
+      context: ./services/stock-service
+      dockerfile: Dockerfile
+    container_name: gmao_stock_service
+    environment:
+      ENVIRONMENT: production
+      PORT: 8004
+      REDIS_URL: redis://:gmao_password@redis-stock:6379
+      JWT_SECRET: ${JWT_SECRET:-mySecretKey123456789}
+    ports:
+      - "8004:8004"
+    depends_on:
+      redis-stock:
+        condition: service_healthy
+    networks:
+      - gmao_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # # Service Prédiction IA (Bonus - Python)
+  # prediction-service:
+  #   build:
+  #     context: ./services/prediction-service
+  #     dockerfile: Dockerfile
+  #   container_name: gmao_prediction_service
+  #   environment:
+  #     PYTHONUNBUFFERED: 1
+  #     JWT_SECRET: ${JWT_SECRET:-mySecretKey123456789}
+  #     INTERVENTIONS_SERVICE_URL: http://interventions-service:8002
+  #     MACHINES_SERVICE_URL: http://machines-service:8001
+  #   ports:
+  #     - "8005:8005"
+  #   depends_on:
+  #     - interventions-service
+  #     - machines-service
+  #   networks:
+  #     - gmao_network
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 60s
+
+  # ===================
+  # API GATEWAY
+  # ===================
+
+  # API Gateway (Nginx)
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: gmao_api_gateway
+    ports:
+      - "80:80"
+      - "443:443"  # Pour HTTPS en production
+    depends_on:
+      - machines-service
+      - interventions-service  
+      - techniciens-service
+      - stock-service
+      # - prediction-service
+    networks:
+      - gmao_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===================
+  # MONITORING (Optionnel)
+  # ===================
+
+  # Portainer pour la gestion des conteneurs
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: gmao_portainer
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - gmao_network
+    restart: unless-stopped
+
+# ===================
+# VOLUMES PERSISTANTS
+# ===================
+volumes:
+  postgres_machines_data:
+    driver: local
+  mongo_interventions_data:
+    driver: local
+  mysql_techniciens_data:
+    driver: local
+  redis_stock_data:
+    driver: local
+  portainer_data:
+    driver: local
+
+# ===================
+# RÉSEAU
+# ===================
+networks:
+  gmao_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16

@@ -1,0 +1,62 @@
+# src/main/resources/application.yml
+server:
+  port: 8001
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: machines-service
+  
+  # Configuration base de données PostgreSQL
+  datasource:
+    url: jdbc:postgresql://localhost:5432/machines_db
+    username: gmao_user
+    password: gmao_password
+    driver-class-name: org.postgresql.Driver
+    
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+# Configuration Swagger/OpenAPI
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+
+# Configuration des autres services
+services:
+  interventions:
+    url: http://interventions-service:8002
+
+# Configuration logging
+logging:
+  level:
+    com.ics.gmao.machines: DEBUG
+    org.springframework.security: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+# Configuration actuator pour monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+# Configuration JWT (sera utilisée par la sécurité)
+jwt:
+  secret: mySecretKey123456789
+  expiration: 86400000  # 24 heures en millisecondes

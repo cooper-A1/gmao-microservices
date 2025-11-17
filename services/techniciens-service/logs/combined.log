@@ -1,0 +1,2 @@
+{"level":"info","message":"Pool de connexions MySQL créé","service":"techniciens-service","timestamp":"2025-09-12T18:56:55.347Z"}
+{"code":"ENOTFOUND","errno":-3008,"fatal":true,"hostname":"mysql-techniciens","level":"error","message":"❌ Test de connexion MySQL échoué: getaddrinfo ENOTFOUND mysql-techniciens","service":"techniciens-service","stack":"Error: getaddrinfo ENOTFOUND mysql-techniciens\n    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:120:26)","syscall":"getaddrinfo","timestamp":"2025-09-12T18:56:56.514Z"}
