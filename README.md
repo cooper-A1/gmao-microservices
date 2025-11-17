@@ -2,7 +2,7 @@
 # README.md - Documentation complète
 # Système GMAO - Architecture Microservices
 
-## 🏗️ Architecture
+## Architecture
 
 Ce système GMAO (Gestion de Maintenance Assistée par Ordinateur) est conçu selon une architecture microservices polyglotte pour l'entreprise industrielle ICS au Sénégal.
 
@@ -17,7 +17,7 @@ Ce système GMAO (Gestion de Maintenance Assistée par Ordinateur) est conçu se
 | **Prédiction IA** | Python | - | 8005 | Analyse prédictive (bonus) |
 | **API Gateway** | Nginx | - | 80 | Point d'entrée unique |
 
-## 🚀 Démarrage rapide
+## Démarrage rapide
 
 ### Prérequis
 - Docker et Docker Compose
@@ -145,28 +145,28 @@ gmao-microservices/
 # Arrêter le système  
 ./stop.sh
 
-# Reset complet (⚠️ supprime les données)
+# Reset complet 
 ./reset.sh
 
 # Status des services
 docker-compose ps
 ```
 
-## 🏭 Spécifique à ICS Sénégal
+## Spécifique à ICS Sénégal
 
 - Données de test avec du matériel industriel sénégalais
 - Compétences techniques adaptées au contexte local
 - Fournisseurs basés au Sénégal (SKF, Total, Schneider Electric)
 - Support multilingue (français/anglais)
 
-## 📊 Monitoring et observabilité
+## Monitoring et observabilité
 
 - **Logs centralisés**: Chaque service log dans sa technologie
 - **Health checks**: Endpoints `/health` pour chaque service
 - **Métriques**: Actuator (Spring), built-in pour autres
 - **Portainer**: Interface graphique de gestion des conteneurs
 
-## 🔒 Sécurité
+## Sécurité
 
 - Authentification JWT centralisée
 - Autorisation par rôles (admin, manager, technicien)
@@ -174,7 +174,7 @@ docker-compose ps
 - Variables d'environnement pour les secrets
 - Base de données avec authentification
 
-## 🚢 Déploiement Production
+## Déploiement Production
 
 ### Docker Swarm ou Kubernetes
 
@@ -184,23 +184,3 @@ Le système est conçu pour être facilement déployé en production avec:
 - Variables d'environnement externalisées
 - Volumes persistants pour les données
 - Services stateless (sauf bases de données)
-
-### Configuration production
-
-1. Modifier les secrets dans `.env`
-2. Configurer HTTPS sur l'API Gateway
-3. Utiliser des bases de données externes managées
-4. Configurer la sauvegarde des volumes
-5. Mettre en place le monitoring (Prometheus/Grafana)
-
-## 🤝 Contribution
-
-1. Fork le projet
-2. Créer une branche feature
-3. Commiter les changements
-4. Pousser vers la branche
-5. Ouvrir une Pull Request
-
-## 📄 Licence
-
-MIT License - Voir le fichier LICENSE
